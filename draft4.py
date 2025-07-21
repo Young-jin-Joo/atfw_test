@@ -1,6 +1,43 @@
 import streamlit as st
 
-# 방산기술목록서 필요하면 사용
+TAMPERING_OPTIONS = {
+    "패키징 변조": "패키지 봉인, 테이프, 실링 등이 파손/재조립되어 위변조 여부를 알아차리지 못할 수 있습니다.",
+    "PCB 변조": "회로 트레이스가 변경되어 비정상 동작 또는 백도어 회로가 삽입될 수 있습니다.",
+    "칩 변조": "하드웨어 트로이 목마나 시리얼 변조로 정보 유출이나 추적 우회가 발생할 수 있습니다.",
+    "코드 변조": "악성 코드 삽입 등으로 무결성 파괴와 시스템 변조가 일어날 수 있습니다.",
+    "SW 변조": "소프트웨어 기능을 변경하여 권한 상승 또는 데이터 유출 등을 발생시킬 수 있습니다." 
+}
+
+AT_TECH_DB = {
+    "패키징 변조": ["AT 기술 1", "AT 기술 2"],
+    "PCB 변조": ["AT 기술 3"],
+    "칩 변조": ["AT 기술 4", "AT 기술 5"],
+    "코드 변조": ["AT 기술 6"],
+    "SW 변조": ["AT 기술 7"]
+}
+
+TAMPERING_TECH_DESC = {
+    "a": "a 기술은 패키징 관련 보안 기능을 제공합니다.",
+    "b": "b 기술은 회로 수준에서의 위협을 다룹니다.",
+    "c": "c 기술은 칩 내부의 하드웨어 보안과 관련이 있습니다."
+}
+
+TECH_CATEGORY_DB = {
+    "A": {
+        "패키징": ["a"],
+        "PCB": ["b"],
+        "칩": ["c"]
+    },
+    "B": {
+        "패키징": ["b"],
+        "코드": ["a", "c"]
+    },
+    "C": {
+        "SW": ["a", "b"],
+        "칩": ["c"]
+    }
+}
+
 DEFENSE_TECH_TREE = {
  "센서": {
         "레이더센서": {
@@ -240,95 +277,74 @@ DEFENSE_TECH_TREE = {
 
 }
 
-
-
-
-
-# 고정된 Tampering 유형
-TAMPERING_TYPES = ["패키징", "PCB", "칩", "코드", "SW"]
-
-# AT 기술 DB 여기에 추가?
-AT_TECH_DB = {
-    "패키징 변조": ["AT 기술 1", "AT 기술 2"],
-    "PCB 변조": ["AT 기술 3"],
-    "칩 변조": ["AT 기술 4", "AT 기술 5"],
-    "코드 변조": ["AT 기술 6"],
-    "SW 변조": ["AT 기술 7"]
-}
-
-# 세션 상태 초기화
-if "custom_tech_db" not in st.session_state:
-    st.session_state["custom_tech_db"] = {
-        "A": { "tampering": ["패키징"] },
-        "B": { "tampering": ["코드"] },
-        "C": { "tampering": ["패키징", "칩"] },
-    }
+# --------------------------
+# 세션 상태 관리
+# --------------------------
 if "page" not in st.session_state:
     st.session_state["page"] = "select_tamper"
+if "registered_tech_names" not in st.session_state:
+    st.session_state["registered_tech_names"] = []
+if "tech_to_tamper" not in st.session_state:
+    st.session_state["tech_to_tamper"] = {}
 
 st.set_page_config(page_title="AT Framework Tool", layout="wide")
 
-# --- 1. 기술 선택 페이지 ---
+# --------------------------
+# 1페이지: 기술명 기반 Tampering/AT 기술 조회
+# --------------------------
 if st.session_state["page"] == "select_tamper":
-    st.markdown("<h1 style='text-align:center; color:#27374D;'>🛡️ AT Framework Tool</h1>", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center;'>🛡️ AT Framework Tool</h2>", unsafe_allow_html=True)
 
-    tech_list = list(st.session_state["custom_tech_db"].keys())
-    if not tech_list:
-        st.info("등록된 기술이 없습니다. 아래 버튼을 눌러 새로 등록해보세요.")
+    col_left, col_right = st.columns([4, 1])
+    with col_right:
+        if st.button("➡️ 방위산업기술 분류로 이동", use_container_width=True):
+            st.session_state["page"] = "classify"
+
+    if st.session_state["registered_tech_names"]:
+        selected_tech = st.selectbox("✅ 등록된 기술명 선택", st.session_state["registered_tech_names"])
+        st.markdown(f"선택한 등록 기술명: **{selected_tech}**")
+
+        # Tampering 위협 선택
+        tamperings = st.session_state["tech_to_tamper"].get(selected_tech, [])
+        if tamperings:
+            selected_tamper = st.selectbox("Tampering 유형 선택", tamperings)
+
+            st.markdown(f"**✔️ Tampering 설명:** {TAMPERING_OPTIONS.get(selected_tamper, '정보 없음')}")
+
+            at_techs = AT_TECH_DB.get(selected_tamper, [])
+            st.markdown("#### 🛠️ 대응 AT 기술 목록")
+            if at_techs:
+                for at in at_techs:
+                    st.markdown(f"- {at}")
+            else:
+                st.info("해당 유형에 대응하는 AT 기술이 없습니다.")
+        else:
+            st.warning("이 기술에는 등록된 Tampering 위협이 없습니다.")
     else:
-        selected_tech = st.selectbox("✅ 적용 기술 선택", options=tech_list, help="등록된 기술 중 하나를 선택하세요.")
-        tampering_list = st.session_state["custom_tech_db"][selected_tech].get("tampering", [])
+        st.info("등록된 기술명이 없습니다. 2페이지에서 기술명을 먼저 등록하세요.")
 
-        if not tampering_list:
-            st.warning("이 기술에는 Tampering 유형이 아직 등록되지 않았습니다.")
-        else:
-            selected_tamper = st.selectbox("🔍 Tampering 유형 선택", options=tampering_list)
-            tamper_key = selected_tamper + " 변조"
-            at_techs = AT_TECH_DB.get(tamper_key, [])
-
-            st.markdown(
-                f"""
-                <div style="background-color:#e9edf5;padding:15px;border-radius:10px;border:1px solid #cfd8e3;">
-                    <h4 style="color:#1f2f46;">📌 선택된 Tampering 유형: <span style="color:#374a67;">{selected_tamper}</span></h4>
-                    <p style="margin-top:8px;font-size:16px;">
-                    ▶ <b style="color:#1f2f46;">AT 기술:</b> <span style="color:#2c2c2c;">{', '.join(at_techs) if at_techs else "없음"}</span>
-                    </p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-
-    st.markdown("<hr>", unsafe_allow_html=True)
-    if st.button("➕ 신규 기술 등록하기"):
-        st.session_state["page"] = "add_custom"
-
-# --- 2. 신규 기술 등록 페이지 ---
-elif st.session_state["page"] == "add_custom":
-    st.markdown("<h2 style='color:#1f2f46;'>➕ 신규 기술 등록</h2>", unsafe_allow_html=True)
-    user_tech_name = st.text_input("📄 등록할 기술명을 입력하세요", placeholder="예: 미사일")
-
-    st.markdown("<br><b style='color:#2e3c58;'>💥 적용할 Tampering 유형을 선택하세요</b>", unsafe_allow_html=True)
-    selected_tampers = st.multiselect("", TAMPERING_TYPES)
-
-    if st.button("✅ 기술 등록하기", use_container_width=True):
-        if not user_tech_name:
-            st.error("기술명을 입력해주세요.")
-        elif user_tech_name in st.session_state["custom_tech_db"]:
-            st.warning("이미 등록된 기술입니다.")
-        elif not selected_tampers:
-            st.warning("최소 하나 이상의 Tampering 유형을 선택하세요.")
-        else:
-            st.session_state["custom_tech_db"][user_tech_name] = {
-                "tampering": selected_tampers
-            }
-            st.success(f"✅ '{user_tech_name}' 기술이 등록되었습니다!")
-            st.session_state["page"] = "select_tamper"
-
-    if st.button("◀ 돌아가기", use_container_width=True):
+# --------------------------
+# 2페이지: 기술명 + 분류 + Tampering 등록
+# --------------------------
+elif st.session_state["page"] == "classify":
+    st.title("2️⃣ 방위산업기술 단계별 분류")
+    if st.button("⬅️ Tampering 위협 선택으로", use_container_width=True):
         st.session_state["page"] = "select_tamper"
 
+    user_tech_name = st.text_input("회사/조직의 기술명을 입력하세요 (참고용)")
+    field = st.selectbox("대분류(분야)", list(DEFENSE_TECH_TREE.keys()))
+    category = st.selectbox("중분류(분류)", list(DEFENSE_TECH_TREE[field].keys()))
+    tech = st.selectbox("소분류(기술명)", list(DEFENSE_TECH_TREE[field][category].keys()))
+    desc = DEFENSE_TECH_TREE[field][category][tech]
+    st.markdown(f"**선택한 기술 설명:** {desc}")
 
+    selected_tampers = st.multiselect("이 기술과 관련된 Tampering 위협을 선택하세요", list(TAMPERING_OPTIONS.keys()))
 
-
+    if st.button("✅ 기술명 등록", use_container_width=True):
+        if user_tech_name:
+            if user_tech_name not in st.session_state["registered_tech_names"]:
+                st.session_state["registered_tech_names"].append(user_tech_name)
+            st.session_state["tech_to_tamper"][user_tech_name] = selected_tampers
+            st.success(f"'{user_tech_name}' 이(가) 성공적으로 등록되었습니다.")
+        else:
+            st.warning("기술명을 입력해주세요.")
